@@ -316,7 +316,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"8. Wait for generation with progress bar\n\n"
             f"📌 *Supported Networks:*\n"
             f"Visa • Mastercard • Amex • Discover\nJCB • UnionPay • Rupay • Elo\n\n"
-            f"📌 *Format:* `CARD_NUMBER|MM/YY|CVV`"
+            f"📌 *Format:* `CARD_NUMBER|MM|YY|CVV`"
         )
         await query.edit_message_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=back_to_main_keyboard())
 
@@ -891,7 +891,7 @@ async def do_generate(query, context, user):
     ]
     await query.message.reply_text(
         f"✅ *Done!* All `{len(all_cards):,}` cards delivered.\n\n"
-        f"_Format: CARD_NUMBER|MM/YY|CVV_",
+        f"_Format: CARD\_NUMBER|MM|YY|CVV_",
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=InlineKeyboardMarkup(buttons)
     )
