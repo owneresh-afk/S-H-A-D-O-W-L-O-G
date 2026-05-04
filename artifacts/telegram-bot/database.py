@@ -49,8 +49,19 @@ def init_db():
                 stat_name TEXT PRIMARY KEY,
                 stat_value INTEGER DEFAULT 0
             );
+
+            CREATE TABLE IF NOT EXISTS custom_bins (
+                bin TEXT PRIMARY KEY,
+                bank_name TEXT NOT NULL,
+                country_code TEXT NOT NULL,
+                country_name TEXT NOT NULL,
+                network TEXT NOT NULL,
+                card_type TEXT NOT NULL,
+                added_by INTEGER,
+                added_at TEXT
+            );
         """)
-        for stat in ("total_users", "total_licenses_generated", "total_licenses_redeemed", "total_cc_generated"):
+        for stat in ("total_users", "total_licenses_generated", "total_licenses_redeemed", "total_cc_generated", "total_custom_bins"):
             c.execute("INSERT OR IGNORE INTO stats (stat_name, stat_value) VALUES (?, 0)", (stat,))
         c.commit()
 
@@ -77,6 +88,7 @@ def get_user(user_id: int):
 
 
 def add_or_update_user(user_id: int, username: str, first_name: str):
+    is_new = False
     with _lock:
         db = _get_conn()
         existing = db.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,)).fetchone()
@@ -85,14 +97,14 @@ def add_or_update_user(user_id: int, username: str, first_name: str):
                 "INSERT INTO users (user_id, username, first_name, join_date) VALUES (?, ?, ?, ?)",
                 (user_id, username, first_name, datetime.utcnow().isoformat())
             )
-            db.commit()
+            is_new = True
         else:
             db.execute(
                 "UPDATE users SET username = ?, first_name = ? WHERE user_id = ?",
                 (username, first_name, user_id)
             )
-            db.commit()
-    if not existing:
+        db.commit()
+    if is_new:
         increment_stat("total_users")
 
 
@@ -210,3 +222,70 @@ def get_all_licenses(limit: int = 20) -> list:
             "SELECT * FROM licenses ORDER BY created_at DESC LIMIT ?", (limit,)
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+# ─── Custom BIN Management ───────────────────────────────────────────────────
+
+def bin_exists(bin_code: str) -> bool:
+    with _lock:
+        db = _get_conn()
+        row = db.execute("SELECT bin FROM custom_bins WHERE bin = ?", (bin_code.strip(),)).fetchone()
+    return row is not None
+
+
+def add_custom_bin(bin_code: str, bank_name: str, country_code: str, country_name: str,
+                   network: str, card_type: str, added_by: int) -> bool:
+    bin_code = bin_code.strip()
+    if bin_exists(bin_code):
+        return False
+    with _lock:
+        db = _get_conn()
+        db.execute(
+            "INSERT INTO custom_bins (bin, bank_name, country_code, country_name, network, card_type, added_by, added_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (bin_code, bank_name, country_code.upper(), country_name,
+             network, card_type, added_by, datetime.utcnow().isoformat())
+        )
+        db.commit()
+    increment_stat("total_custom_bins")
+    return True
+
+
+def delete_custom_bin(bin_code: str) -> bool:
+    with _lock:
+        db = _get_conn()
+        result = db.execute("DELETE FROM custom_bins WHERE bin = ?", (bin_code.strip(),))
+        db.commit()
+    if result.rowcount > 0:
+        increment_stat("total_custom_bins", -1)
+        return True
+    return False
+
+
+def get_custom_bins(limit: int = 50, country_code: str = None) -> list:
+    with _lock:
+        db = _get_conn()
+        if country_code:
+            rows = db.execute(
+                "SELECT * FROM custom_bins WHERE country_code = ? ORDER BY added_at DESC LIMIT ?",
+                (country_code.upper(), limit)
+            ).fetchall()
+        else:
+            rows = db.execute(
+                "SELECT * FROM custom_bins ORDER BY added_at DESC LIMIT ?", (limit,)
+            ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_all_custom_bins() -> list:
+    with _lock:
+        db = _get_conn()
+        rows = db.execute("SELECT * FROM custom_bins").fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_custom_bins_count() -> int:
+    with _lock:
+        db = _get_conn()
+        count = db.execute("SELECT COUNT(*) as cnt FROM custom_bins").fetchone()["cnt"]
+    return count

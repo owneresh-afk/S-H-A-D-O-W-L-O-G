@@ -1731,6 +1731,10 @@ def generate_cards(
 
 
 def format_card(card: dict) -> str:
+    return f"{card['number']}|{card['month']}|{card['year']}|{card['cvv']}"
+
+
+def format_card_inline(card: dict) -> str:
     return f"`{card['number']}|{card['month']}|{card['year']}|{card['cvv']}`"
 
 
@@ -1761,3 +1765,79 @@ def get_networks_for_countries(country_codes: list, bank: Optional[str] = None) 
             for net in bdata:
                 networks.add(net)
     return sorted(networks)
+
+
+def generate_cards_with_custom(
+    countries: list,
+    banks: Optional[list],
+    networks: Optional[list],
+    card_type: str,
+    count: int,
+    custom_bins_list: Optional[list] = None
+) -> list:
+    """Generate cards including custom BINs from the database."""
+    cards = []
+
+    # Build custom BIN candidates filtered by countries/networks/type
+    custom_candidates = []
+    if custom_bins_list:
+        for cb in custom_bins_list:
+            if countries and cb["country_code"] not in countries:
+                continue
+            if networks and cb["network"] not in networks:
+                continue
+            ct = cb.get("card_type", "credit")
+            if card_type != "both" and ct != "both" and ct != card_type:
+                continue
+            custom_candidates.append(cb)
+
+    # Merge pool: 30% chance to pick custom BIN if available
+    attempts = 0
+    max_attempts = count * 30
+
+    while len(cards) < count and attempts < max_attempts:
+        attempts += 1
+
+        use_custom = custom_candidates and random.random() < 0.3
+
+        if use_custom:
+            cb = random.choice(custom_candidates)
+            bin_prefix = cb["bin"]
+            net = cb["network"]
+            bname = cb["bank_name"]
+            country_name = cb["country_name"]
+        else:
+            country_code = random.choice(countries)
+            bank = random.choice(banks) if banks else None
+            network = random.choice(networks) if networks else None
+
+            result = _find_bin(country_code, bank, network, card_type)
+            if not result:
+                result = _find_bin(country_code, None, network, card_type)
+            if not result:
+                result = _find_bin(country_code, None, None, card_type)
+            if not result:
+                result = _find_bin(country_code, None, None, "credit")
+            if not result:
+                continue
+
+            bname, net, bin_prefix = result
+            country_name = BINS_DB[country_code]["name"]
+
+        length = NETWORK_LENGTHS.get(net, 16)
+        number = generate_card_number(bin_prefix, length)
+        month, year = generate_expiry()
+        cvv = generate_cvv(net)
+
+        cards.append({
+            "number": number,
+            "month": month,
+            "year": year,
+            "cvv": cvv,
+            "network": net,
+            "bank": bname,
+            "country": country_name,
+            "type": card_type,
+        })
+
+    return cards
