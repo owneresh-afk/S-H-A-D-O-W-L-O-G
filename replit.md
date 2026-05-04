@@ -2,7 +2,7 @@
 
 ## Overview
 
-pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
+pnpm workspace monorepo using TypeScript + a Python Telegram bot.
 
 ## Stack
 
@@ -15,6 +15,40 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **Validation**: Zod (`zod/v4`), `drizzle-zod`
 - **API codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (CJS bundle)
+
+## Telegram Bot (`artifacts/telegram-bot/`)
+
+A professional exclusive Telegram bot for generating test credit/debit card numbers.
+
+### Features
+- **License key system**: Time-based access control (minutes, hours, days)
+- **CC Generator**: Country → Bank → Network → Category → Debit/Credit → Quantity
+- **20+ Countries**, 50+ banks, 9 card networks (Visa, Mastercard, Amex, Discover, JCB, UnionPay, Rupay, Elo, Diners)
+- **Up to 10,000 cards** per generation with real-time progress bar
+- **Admin panel** (`/admin`): stats, uptime, license generation, user management, broadcast
+- **Flask health server**: port 8000 for Uptime Robot / Render keep-alive
+
+### Stack
+- **Python 3.11**
+- **python-telegram-bot 21.6** (async)
+- **Flask 3.0** (health server)
+- **SQLite** (user/license database)
+
+### Key Commands
+- `/start` — Open main menu (checks authorization)
+- `/redeem [KEY]` — Redeem a licence key
+- `/admin` — Admin panel (admin ID: 8731647972)
+
+### Bot Config
+- Bot token stored in `config.py` + `BOT_TOKEN` env var
+- Admin ID: `8731647972`
+- Database: `bot_data.db` (SQLite, auto-created)
+
+### Deployment (Render)
+- `render.yaml` is configured for Render hosting
+- `Procfile` included
+- Health endpoint: `GET /health` or `GET /ping`
+- Set `BOT_TOKEN` and `ADMIN_ID` as environment variables on Render
 
 ## Key Commands
 
